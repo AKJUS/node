@@ -7,11 +7,11 @@
 namespace node {
 
 #ifdef _WIN32
-constexpr bool IsPathSeparator(char c) noexcept {
+constexpr bool IsPathSeparator(const char c) noexcept {
   return c == '\\' || c == '/';
 }
 #else   // POSIX
-constexpr bool IsPathSeparator(char c) noexcept {
+constexpr bool IsPathSeparator(const char c) noexcept {
   return c == '/';
 }
 #endif  // _WIN32
@@ -266,11 +266,11 @@ std::string PathResolve(Environment* env,
   for (int i = numArgs - 1; i >= -1 && !resolvedAbsolute; i--) {
     const std::string& path = (i >= 0) ? std::string(paths[i]) : cwd;
 
-    if (static_cast<size_t>(i) == numArgs - 1 && path.back() == '/') {
-      slashCheck = true;
-    }
-
     if (!path.empty()) {
+      if (static_cast<size_t>(i) == numArgs - 1 && path.back() == '/') {
+        slashCheck = true;
+      }
+
       resolvedPath = std::string(path) + "/" + resolvedPath;
 
       if (path.front() == '/') {
