@@ -17,12 +17,20 @@
 namespace {
 
 std::string WildcardIfDir(const std::string& res) noexcept {
-  auto path = std::filesystem::path(res);
-  auto file_status = std::filesystem::status(path);
-  if (file_status.type() == std::filesystem::file_type::directory) {
-    path /= "*";
+  uv_fs_t req;
+  int rc = uv_fs_stat(nullptr, &req, res.c_str(), nullptr);
+  if (rc == 0) {
+    const uv_stat_t* const s = static_cast<const uv_stat_t*>(req.ptr);
+    if ((s->st_mode & S_IFMT) == S_IFDIR) {
+      // add wildcard when directory
+      if (res.back() == node::kPathSeparator) {
+        return res + "*";
+      }
+      return res + node::kPathSeparator + "*";
+    }
   }
-  return path.string();
+  uv_fs_req_cleanup(&req);
+  return res;
 }
 
 void FreeRecursivelyNode(
@@ -50,16 +58,16 @@ bool is_tree_granted(
   std::string resolved_param = node::PathResolve(env, {param});
 #ifdef _WIN32
   // Remove leading "\\?\" from UNC path
-  if (resolved_param.substr(0, 4) == "\\\\?\\") {
+  if (resolved_param.starts_with("\\\\?\\")) {
     resolved_param.erase(0, 4);
   }
 
   // Remove leading "UNC\" from UNC path
-  if (resolved_param.substr(0, 4) == "UNC\\") {
+  if (resolved_param.starts_with("UNC\\")) {
     resolved_param.erase(0, 4);
   }
   // Remove leading "//" from UNC path
-  if (resolved_param.substr(0, 2) == "//") {
+  if (resolved_param.starts_with("//")) {
     resolved_param.erase(0, 2);
   }
 #endif
@@ -135,10 +143,12 @@ void FSPermission::Apply(Environment* env,
 
 void FSPermission::GrantAccess(PermissionScope perm, const std::string& res) {
   const std::string path = WildcardIfDir(res);
-  if (perm == PermissionScope::kFileSystemRead) {
+  if (perm == PermissionScope::kFileSystemRead &&
+      !granted_in_fs_.Lookup(path)) {
     granted_in_fs_.Insert(path);
     deny_all_in_ = false;
-  } else if (perm == PermissionScope::kFileSystemWrite) {
+  } else if (perm == PermissionScope::kFileSystemWrite &&
+             !granted_out_fs_.Lookup(path)) {
     granted_out_fs_.Insert(path);
     deny_all_out_ = false;
   }
@@ -219,8 +229,8 @@ void FSPermission::RadixTree::Insert(const std::string& path) {
     }
   }
 
-  if (UNLIKELY(per_process::enabled_debug_list.enabled(
-          DebugCategory::PERMISSION_MODEL))) {
+  if (per_process::enabled_debug_list.enabled(DebugCategory::PERMISSION_MODEL))
+      [[unlikely]] {
     per_process::Debug(DebugCategory::PERMISSION_MODEL, "Inserting %s\n", path);
     PrintTree(root_node_);
   }

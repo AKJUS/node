@@ -8,6 +8,16 @@
 added: v8.5.0
 changes:
   - version:
+    - v23.1.0
+    - v22.12.0
+    - v20.18.3
+    - v18.20.5
+    pr-url: https://github.com/nodejs/node/pull/55333
+    description: Import attributes are no longer experimental.
+  - version: v22.0.0
+    pr-url: https://github.com/nodejs/node/pull/52104
+    description: Drop support for import assertions.
+  - version:
     - v21.0.0
     - v20.10.0
     - v18.20.0
@@ -116,14 +126,13 @@ Node.js has two module systems: [CommonJS][] modules and ECMAScript modules.
 
 Authors can tell Node.js to interpret JavaScript as an ES module via the `.mjs`
 file extension, the `package.json` [`"type"`][] field with a value `"module"`,
-the [`--input-type`][] flag with a value of `"module"`, or the
-[`--experimental-default-type`][] flag with a value of `"module"`. These are
-explicit markers of code being intended to run as an ES module.
+or the [`--input-type`][] flag with a value of `"module"`. These are explicit
+markers of code being intended to run as an ES module.
 
-Inversely, authors can tell Node.js to interpret JavaScript as CommonJS via the
-`.cjs` file extension, the `package.json` [`"type"`][] field with a value
-`"commonjs"`, the [`--input-type`][] flag with a value of `"commonjs"`, or the
-[`--experimental-default-type`][] flag with a value of `"commonjs"`.
+Inversely, authors can explicitly tell Node.js to interpret JavaScript as
+CommonJS via the `.cjs` file extension, the `package.json` [`"type"`][] field
+with a value `"commonjs"`, or the [`--input-type`][] flag with a value of
+`"commonjs"`.
 
 When code lacks explicit markers for either module system, Node.js will inspect
 the source code of a module to look for ES module syntax. If such syntax is
@@ -270,13 +279,9 @@ changes:
     description: Switch from Import Assertions to Import Attributes.
 -->
 
-> Stability: 1.1 - Active development
+> Stability: 2 - Stable
 
-> This feature was previously named "Import assertions", and using the `assert`
-> keyword instead of `with`. Any uses in code of the prior `assert` keyword
-> should be updated to use `with` instead.
-
-The [Import Attributes proposal][] adds an inline syntax for module import
+[Import attributes][Import Attributes MDN] are an inline syntax for module import
 statements to pass on more information alongside the module specifier.
 
 ```js
@@ -286,12 +291,13 @@ const { default: barData } =
   await import('./bar.json', { with: { type: 'json' } });
 ```
 
-Node.js supports the following `type` values, for which the attribute is
-mandatory:
+Node.js only supports the `type` attribute, for which it supports the following values:
 
 | Attribute `type` | Needed for       |
 | ---------------- | ---------------- |
 | `'json'`         | [JSON modules][] |
+
+The `type: 'json'` attribute is mandatory when importing JSON modules.
 
 ## Built-in modules
 
@@ -338,7 +344,7 @@ modules it can be used to load ES modules.
 * {Object}
 
 The `import.meta` meta property is an `Object` that contains the following
-properties.
+properties. It is only supported in ES modules.
 
 ### `import.meta.dirname`
 
@@ -398,8 +404,8 @@ changes:
     - v20.6.0
     - v18.19.0
     pr-url: https://github.com/nodejs/node/pull/49028
-    description: Unflag `import.meta.resolve`, with `parentURL` parameter still
-                 flagged.
+    description: No longer behind `--experimental-import-meta-resolve` CLI flag,
+                 except for the non-standard `parentURL` parameter.
   - version:
     - v20.6.0
     - v18.19.0
@@ -468,13 +474,36 @@ compatibility.
 ### `require`
 
 The CommonJS module `require` currently only supports loading synchronous ES
-modules when `--experimental-require-module` is enabled.
+modules (that is, ES modules that do not use top-level `await`).
 
 See [Loading ECMAScript modules using `require()`][] for details.
 
 ### CommonJS Namespaces
 
+<!-- YAML
+added: v14.13.0
+changes:
+  - version: v23.0.0
+    pr-url: https://github.com/nodejs/node/pull/53848
+    description: Added `'module.exports'` export marker to CJS namespaces.
+-->
+
 CommonJS modules consist of a `module.exports` object which can be of any type.
+
+To support this, when importing CommonJS from an ECMAScript module, a namespace
+wrapper for the CommonJS module is constructed, which always provides a
+`default` export key pointing to the CommonJS `module.exports` value.
+
+In addition, a heuristic static analysis is performed against the source text of
+the CommonJS module to get a best-effort static list of exports to provide on
+the namespace from values on `module.exports`. This is necessary since these
+namespaces must be constructed prior to the evaluation of the CJS module.
+
+These CommonJS namespace objects also provide the `default` export as a
+`'module.exports'` named export, in order to unambiguously indicate that their
+representation in CommonJS uses this value, and not the namespace value. This
+mirrors the semantics of the handling of the `'module.exports'` export name in
+[`require(esm)`][] interop support.
 
 When importing a CommonJS module, it can be reliably imported using the ES
 module default import or its corresponding sugar syntax:
@@ -483,9 +512,7 @@ module default import or its corresponding sugar syntax:
 
 ```js
 import { default as cjs } from 'cjs';
-
-// The following import statement is "syntax sugar" (equivalent but sweeter)
-// for `{ default as cjsSugar }` in the above import statement:
+// Identical to the above
 import cjsSugar from 'cjs';
 
 console.log(cjs);
@@ -494,10 +521,6 @@ console.log(cjs === cjsSugar);
 //   <module.exports>
 //   true
 ```
-
-The ECMAScript Module Namespace representation of a CommonJS module is always
-a namespace with a `default` export key pointing to the CommonJS
-`module.exports` value.
 
 This Module Namespace Exotic Object can be directly observed either when using
 `import * as m from 'cjs'` or a dynamic import:
@@ -509,7 +532,7 @@ import * as m from 'cjs';
 console.log(m);
 console.log(m === await import('cjs'));
 // Prints:
-//   [Module] { default: <module.exports> }
+//   [Module] { default: <module.exports>, 'module.exports': <module.exports> }
 //   true
 ```
 
@@ -540,7 +563,12 @@ console.log(cjs);
 
 import * as m from './cjs.cjs';
 console.log(m);
-// Prints: [Module] { default: { name: 'exported' }, name: 'exported' }
+// Prints:
+//   [Module] {
+//     default: { name: 'exported' },
+//     'module.exports': { name: 'exported' },
+//     name: 'exported'
+//   }
 ```
 
 As can be seen from the last example of the Module Namespace Exotic Object being
@@ -609,7 +637,18 @@ separate cache.
 
 ## JSON modules
 
-> Stability: 1 - Experimental
+<!-- YAML
+changes:
+  - version:
+    - v23.1.0
+    - v22.12.0
+    - v20.18.3
+    - v18.20.5
+    pr-url: https://github.com/nodejs/node/pull/55333
+    description: JSON modules are no longer experimental.
+-->
+
+> Stability: 2 - Stable
 
 JSON files can be referenced by `import`:
 
@@ -1008,18 +1047,21 @@ _isImports_, _conditions_)
 > 5. If `--experimental-wasm-modules` is enabled and _url_ ends in
 >    _".wasm"_, then
 >    1. Return _"wasm"_.
-> 6. Let _packageURL_ be the result of **LOOKUP\_PACKAGE\_SCOPE**(_url_).
-> 7. Let _pjson_ be the result of **READ\_PACKAGE\_JSON**(_packageURL_).
-> 8. Let _packageType_ be **null**.
-> 9. If _pjson?.type_ is _"module"_ or _"commonjs"_, then
->    1. Set _packageType_ to _pjson.type_.
-> 10. If _url_ ends in _".js"_, then
+> 6. If `--experimental-addon-modules` is enabled and _url_ ends in
+>    _".node"_, then
+>    1. Return _"addon"_.
+> 7. Let _packageURL_ be the result of **LOOKUP\_PACKAGE\_SCOPE**(_url_).
+> 8. Let _pjson_ be the result of **READ\_PACKAGE\_JSON**(_packageURL_).
+> 9. Let _packageType_ be **null**.
+> 10. If _pjson?.type_ is _"module"_ or _"commonjs"_, then
+>     1. Set _packageType_ to _pjson.type_.
+> 11. If _url_ ends in _".js"_, then
 >     1. If _packageType_ is not **null**, then
 >        1. Return _packageType_.
 >     2. If the result of **DETECT\_MODULE\_SYNTAX**(_source_) is true, then
 >        1. Return _"module"_.
 >     3. Return _"commonjs"_.
-> 11. If _url_ does not have any extension, then
+> 12. If _url_ does not have any extension, then
 >     1. If _packageType_ is _"module"_ and `--experimental-wasm-modules` is
 >        enabled and the file at _url_ contains the header for a WebAssembly
 >        module, then
@@ -1029,7 +1071,7 @@ _isImports_, _conditions_)
 >     3. If the result of **DETECT\_MODULE\_SYNTAX**(_source_) is true, then
 >        1. Return _"module"_.
 >     4. Return _"commonjs"_.
-> 12. Return **undefined** (will throw during load phase).
+> 13. Return **undefined** (will throw during load phase).
 
 **LOOKUP\_PACKAGE\_SCOPE**(_url_)
 
@@ -1079,7 +1121,7 @@ resolution for ESM specifiers is [commonjs-extension-resolution-loader][].
 [Dynamic `import()`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import
 [ES Module Integration Proposal for WebAssembly]: https://github.com/webassembly/esm-integration
 [Import Attributes]: #import-attributes
-[Import Attributes proposal]: https://github.com/tc39/proposal-import-attributes
+[Import Attributes MDN]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import/with
 [JSON modules]: #json-modules
 [Loading ECMAScript modules using `require()`]: modules.md#loading-ecmascript-modules-using-require
 [Module customization hooks]: module.md#customization-hooks
@@ -1088,7 +1130,6 @@ resolution for ESM specifiers is [commonjs-extension-resolution-loader][].
 [URL]: https://url.spec.whatwg.org/
 [`"exports"`]: packages.md#exports
 [`"type"`]: packages.md#type
-[`--experimental-default-type`]: cli.md#--experimental-default-typetype
 [`--input-type`]: cli.md#--input-typetype
 [`data:` URLs]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URIs
 [`export`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/export
@@ -1103,8 +1144,9 @@ resolution for ESM specifiers is [commonjs-extension-resolution-loader][].
 [`package.json`]: packages.md#nodejs-packagejson-field-definitions
 [`path.dirname()`]: path.md#pathdirnamepath
 [`process.dlopen`]: process.md#processdlopenmodule-filename-flags
+[`require(esm)`]: modules.md#loading-ecmascript-modules-using-require
 [`url.fileURLToPath()`]: url.md#urlfileurltopathurl-options
-[cjs-module-lexer]: https://github.com/nodejs/cjs-module-lexer/tree/1.2.2
+[cjs-module-lexer]: https://github.com/nodejs/cjs-module-lexer/tree/2.0.0
 [commonjs-extension-resolution-loader]: https://github.com/nodejs/loaders-test/tree/main/commonjs-extension-resolution-loader
 [custom https loader]: module.md#import-from-https
 [import.meta.resolve]: #importmetaresolvespecifier

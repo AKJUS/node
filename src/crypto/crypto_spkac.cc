@@ -9,6 +9,7 @@
 
 namespace node {
 
+using ncrypto::BIOPointer;
 using v8::Context;
 using v8::FunctionCallbackInfo;
 using v8::Local;
@@ -23,7 +24,7 @@ void VerifySpkac(const FunctionCallbackInfo<Value>& args) {
   ArrayBufferOrViewContents<char> input(args[0]);
   if (input.empty()) return args.GetReturnValue().SetEmptyString();
 
-  if (UNLIKELY(!input.CheckSizeInt32()))
+  if (!input.CheckSizeInt32()) [[unlikely]]
     return THROW_ERR_OUT_OF_RANGE(env, "spkac is too large");
 
   args.GetReturnValue().Set(ncrypto::VerifySpkac(input.data(), input.size()));
@@ -35,7 +36,7 @@ void ExportPublicKey(const FunctionCallbackInfo<Value>& args) {
   ArrayBufferOrViewContents<char> input(args[0]);
   if (input.empty()) return args.GetReturnValue().SetEmptyString();
 
-  if (UNLIKELY(!input.CheckSizeInt32()))
+  if (!input.CheckSizeInt32()) [[unlikely]]
     return THROW_ERR_OUT_OF_RANGE(env, "spkac is too large");
 
   BIOPointer bio = ncrypto::ExportPublicKey(input.data(), input.size());
@@ -51,7 +52,7 @@ void ExportChallenge(const FunctionCallbackInfo<Value>& args) {
   ArrayBufferOrViewContents<char> input(args[0]);
   if (input.empty()) return args.GetReturnValue().SetEmptyString();
 
-  if (UNLIKELY(!input.CheckSizeInt32()))
+  if (!input.CheckSizeInt32()) [[unlikely]]
     return THROW_ERR_OUT_OF_RANGE(env, "spkac is too large");
 
   auto cert = ByteSource::Allocated(

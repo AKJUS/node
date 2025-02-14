@@ -20,21 +20,25 @@ function findCoverageFileForPid(pid) {
 }
 
 function getTapCoverageFixtureReport() {
-  /* eslint-disable @stylistic/js/max-len */
+
   const report = [
     '# start of coverage report',
-    '# -------------------------------------------------------------------------------------------------------------------',
-    '# file                                     | line % | branch % | funcs % | uncovered lines',
-    '# -------------------------------------------------------------------------------------------------------------------',
-    '# test/fixtures/test-runner/coverage.js    |  78.65 |    38.46 |   60.00 | 12-13 16-22 27 39 43-44 61-62 66-67 71-72',
-    '# test/fixtures/test-runner/invalid-tap.js | 100.00 |   100.00 |  100.00 | ',
-    '# test/fixtures/v8-coverage/throw.js       |  71.43 |    50.00 |  100.00 | 5-6',
-    '# -------------------------------------------------------------------------------------------------------------------',
-    '# all files                                |  78.35 |    43.75 |   60.00 |',
-    '# -------------------------------------------------------------------------------------------------------------------',
+    '# --------------------------------------------------------------------------------------------',
+    '# file              | line % | branch % | funcs % | uncovered lines',
+    '# --------------------------------------------------------------------------------------------',
+    '# test              |        |          |         | ',
+    '#  fixtures         |        |          |         | ',
+    '#   test-runner     |        |          |         | ',
+    '#    coverage.js    |  78.65 |    38.46 |   60.00 | 12-13 16-22 27 39 43-44 61-62 66-67 71-72',
+    '#    invalid-tap.js | 100.00 |   100.00 |  100.00 | ',
+    '#   v8-coverage     |        |          |         | ',
+    '#    throw.js       |  71.43 |    50.00 |  100.00 | 5-6',
+    '# --------------------------------------------------------------------------------------------',
+    '# all files         |  78.35 |    43.75 |   60.00 | ',
+    '# --------------------------------------------------------------------------------------------',
     '# end of coverage report',
   ].join('\n');
-  /* eslint-enable @stylistic/js/max-len */
+
 
   if (common.isWindows) {
     return report.replaceAll('/', '\\');
@@ -57,6 +61,7 @@ for (const coverage of coverages) {
     const result = spawnSync(process.execPath, [
       '--test',
       '--experimental-test-coverage',
+      '--test-coverage-exclude=!test/**',
       `${coverage.flag}=25`,
       '--test-reporter', 'tap',
       fixture,
@@ -73,6 +78,7 @@ for (const coverage of coverages) {
     const result = spawnSync(process.execPath, [
       '--test',
       '--experimental-test-coverage',
+      '--test-coverage-exclude=!test/**',
       `${coverage.flag}=25`,
       '--test-reporter', reporter,
       fixture,
@@ -88,6 +94,7 @@ for (const coverage of coverages) {
     const result = spawnSync(process.execPath, [
       '--test',
       '--experimental-test-coverage',
+      '--test-coverage-exclude=!test/**',
       `${coverage.flag}=99`,
       '--test-reporter', 'tap',
       fixture,
@@ -104,6 +111,7 @@ for (const coverage of coverages) {
     const result = spawnSync(process.execPath, [
       '--test',
       '--experimental-test-coverage',
+      '--test-coverage-exclude=!test/**',
       `${coverage.flag}=99`,
       '--test-reporter', reporter,
       fixture,
@@ -119,6 +127,7 @@ for (const coverage of coverages) {
     const result = spawnSync(process.execPath, [
       '--test',
       '--experimental-test-coverage',
+      '--test-coverage-exclude=!test/**',
       `${coverage.flag}=101`,
       fixture,
     ]);
@@ -132,6 +141,7 @@ for (const coverage of coverages) {
     const result = spawnSync(process.execPath, [
       '--test',
       '--experimental-test-coverage',
+      '--test-coverage-exclude=!test/**',
       `${coverage.flag}=-1`,
       fixture,
     ]);

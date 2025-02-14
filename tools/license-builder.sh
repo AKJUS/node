@@ -24,7 +24,7 @@ ${licenseTextTrimmed}
 
 
 if ! [ -d "${rootdir}/deps/icu/" ] && ! [ -d "${rootdir}/deps/icu-small/" ]; then
-  echo "ICU not installed, run configure to download it, e.g. ./configure --with-intl=small-icu --download=icu"
+  echo "ICU not installed, run \`./configure --with-intl=small-icu --download=icu\` to download it."
   exit 1
 fi
 
@@ -99,8 +99,8 @@ addlicense "npm" "deps/npm" "$licenseText"
 # Build tools
 licenseText="$(cat "${rootdir}/tools/gyp/LICENSE")"
 addlicense "GYP" "tools/gyp" "$licenseText"
-licenseText="$(cat "${rootdir}/tools/inspector_protocol/LICENSE")"
-addlicense "inspector_protocol" "tools/inspector_protocol" "$licenseText"
+licenseText="$(cat "${rootdir}/deps/inspector_protocol/LICENSE")"
+addlicense "inspector_protocol" "deps/inspector_protocol" "$licenseText"
 licenseText="$(cat "${rootdir}/tools/inspector_protocol/jinja2/LICENSE")"
 addlicense "jinja2" "tools/inspector_protocol/jinja2" "$licenseText"
 licenseText="$(cat "${rootdir}/tools/inspector_protocol/markupsafe/LICENSE")"
@@ -129,6 +129,10 @@ addlicense "caja" "lib/internal/freeze_intrinsics.js" "$licenseText"
 # brotli
 licenseText="$(cat "${rootdir}/deps/brotli/LICENSE")"
 addlicense "brotli" "deps/brotli" "$licenseText"
+
+# zstd
+licenseText="$(cat "${rootdir}/deps/zstd/LICENSE")"
+addlicense "zstd" "deps/zstd" "$licenseText"
 
 licenseText="$(cat "${rootdir}/deps/histogram/LICENSE.txt")"
 addlicense "HdrHistogram" "deps/histogram" "$licenseText"

@@ -523,7 +523,6 @@ deprecation level of an API.
 Collaborators can opt to elevate pull requests or issues to the [TSC][].
 Do this if a pull request or issue:
 
-* Is labeled `semver-major`, or
 * Has a significant impact on the codebase, or
 * Is controversial, or
 * Is at an impasse among collaborators who are participating in the discussion.
@@ -531,6 +530,9 @@ Do this if a pull request or issue:
 @-mention the `@nodejs/tsc` GitHub team if you want to elevate an issue to the
 [TSC][]. Do not use the GitHub UI on the right-hand side to assign to
 `@nodejs/tsc` or request a review from `@nodejs/tsc`.
+
+If a pull request is labeled `semver-major`, you can request a review from the
+`@nodejs/tsc` GitHub team.
 
 The TSC serves as the final arbiter where required.
 
@@ -974,10 +976,9 @@ need to be attached anymore, as only important bugfixes will be included.
 ### Other labels
 
 * Operating system labels
-  * `macos`, `windows`, `smartos`, `aix`
-  * No `linux` label because it is the implied default
+  * `macos`, `windows`, `smartos`, `aix`, `linux`, etc.
 * Architecture labels
-  * `arm`, `mips`, `s390`, `ppc`
+  * `arm`, `mips`, `s390`, `ppc`, etc.
   * No `x86{_64}` label because it is the implied default
 
 ["Merge pull request"]: https://help.github.com/articles/merging-a-pull-request/#merging-a-pull-request-on-github

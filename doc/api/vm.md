@@ -229,7 +229,9 @@ overhead.
 <!-- YAML
 added: v0.3.1
 changes:
-  - version: v22.8.0
+  - version:
+    - v22.8.0
+    - v20.18.0
     pr-url: https://github.com/nodejs/node/pull/54394
     description: The `contextObject` argument now accepts `vm.constants.DONT_CONTEXTIFY`.
   - version: v14.6.0
@@ -1091,6 +1093,7 @@ added: v0.3.1
 changes:
   - version:
     - v22.8.0
+    - v20.18.0
     pr-url: https://github.com/nodejs/node/pull/54394
     description: The `contextObject` argument now accepts `vm.constants.DONT_CONTEXTIFY`.
   - version:
@@ -1363,6 +1366,7 @@ added: v0.3.1
 changes:
   - version:
     - v22.8.0
+    - v20.18.0
     pr-url: https://github.com/nodejs/node/pull/54394
     description: The `contextObject` argument now accepts `vm.constants.DONT_CONTEXTIFY`.
   - version:
@@ -1618,12 +1622,12 @@ in the outer context.
 const vm = require('node:vm');
 
 // An undefined `contextObject` option makes the global object contextified.
-let context = vm.createContext();
+const context = vm.createContext();
 console.log(vm.runInContext('globalThis', context) === context);  // false
 // A contextified global object cannot be frozen.
 try {
   vm.runInContext('Object.freeze(globalThis);', context);
-} catch(e) {
+} catch (e) {
   console.log(e); // TypeError: Cannot freeze
 }
 console.log(vm.runInContext('globalThis.foo = 1; foo;', context));  // 1
@@ -1648,7 +1652,7 @@ const context = vm.createContext(vm.constants.DONT_CONTEXTIFY);
 vm.runInContext('Object.freeze(globalThis);', context);
 try {
   vm.runInContext('bar = 1; bar;', context);
-} catch(e) {
+} catch (e) {
   console.log(e); // Uncaught ReferenceError: bar is not defined
 }
 ```
@@ -1677,7 +1681,7 @@ console.log(vm.runInContext('bar;', context));  // 1
 Object.freeze(context);
 try {
   vm.runInContext('baz = 1; baz;', context);
-} catch(e) {
+} catch (e) {
   console.log(e); // Uncaught ReferenceError: baz is not defined
 }
 ```

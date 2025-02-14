@@ -27,16 +27,7 @@ import test from 'node:test';
 const test = require('node:test');
 ```
 
-This module is only available under the `node:` scheme. The following will not
-work:
-
-```mjs
-import test from 'test';
-```
-
-```cjs
-const test = require('test');
-```
+This module is only available under the `node:` scheme.
 
 Tests created via the `test` module consist of a single function that is
 processed in one of three ways:
@@ -114,11 +105,11 @@ top level test with two subtests.
 
 ```js
 test('top level test', async (t) => {
-  await t.test('subtest 1', (t) => {
+  t.test('subtest 1', (t) => {
     assert.strictEqual(1, 1);
   });
 
-  await t.test('subtest 2', (t) => {
+  t.test('subtest 2', (t) => {
     assert.strictEqual(2, 2);
   });
 });
@@ -127,12 +118,7 @@ test('top level test', async (t) => {
 > **Note:** `beforeEach` and `afterEach` hooks are triggered
 > between each subtest execution.
 
-In this example, `await` is used to ensure that both subtests have completed.
-This is necessary because tests do not wait for their subtests to
-complete, unlike tests created within suites.
-Any subtests that are still outstanding when their parent finishes
-are cancelled and treated as failures. Any subtest failures cause the parent
-test to fail.
+Any subtest failures cause the parent test to fail.
 
 ## Skipping tests
 
@@ -250,20 +236,20 @@ that are not executed are omitted from the test runner output.
 // The suite's 'only' option is set, so these tests are run.
 test('this test is run', { only: true }, async (t) => {
   // Within this test, all subtests are run by default.
-  await t.test('running subtest');
+  t.test('running subtest');
 
   // The test context can be updated to run subtests with the 'only' option.
   t.runOnly(true);
-  await t.test('this subtest is now skipped');
-  await t.test('this subtest is run', { only: true });
+  t.test('this subtest is now skipped');
+  t.test('this subtest is run', { only: true });
 
   // Switch the context back to execute all tests.
   t.runOnly(false);
-  await t.test('this subtest is now run');
+  t.test('this subtest is now run');
 
   // Explicitly do not run these tests.
-  await t.test('skipped subtest 3', { only: false });
-  await t.test('skipped subtest 4', { skip: true });
+  t.test('skipped subtest 3', { only: false });
+  t.test('skipped subtest 4', { skip: true });
 });
 
 // The 'only' option is not set, so this test is skipped.
@@ -318,13 +304,13 @@ multiple times (e.g. `--test-name-pattern="test 1"`,
 
 ```js
 test('test 1', async (t) => {
-  await t.test('test 2');
-  await t.test('test 3');
+  t.test('test 2');
+  t.test('test 3');
 });
 
 test('Test 4', async (t) => {
-  await t.test('Test 5');
-  await t.test('test 6');
+  t.test('Test 5');
+  t.test('test 6');
 });
 ```
 
@@ -422,12 +408,22 @@ node --test
 
 By default, Node.js will run all files matching these patterns:
 
-* `**/*.test.?(c|m)js`
-* `**/*-test.?(c|m)js`
-* `**/*_test.?(c|m)js`
-* `**/test-*.?(c|m)js`
-* `**/test.?(c|m)js`
-* `**/test/**/*.?(c|m)js`
+* `**/*.test.{cjs,mjs,js}`
+* `**/*-test.{cjs,mjs,js}`
+* `**/*_test.{cjs,mjs,js}`
+* `**/test-*.{cjs,mjs,js}`
+* `**/test.{cjs,mjs,js}`
+* `**/test/**/*.{cjs,mjs,js}`
+
+Unless [`--no-experimental-strip-types`][] is supplied, the following
+additional patterns are also matched:
+
+* `**/*.test.{cts,mts,ts}`
+* `**/*-test.{cts,mts,ts}`
+* `**/*_test.{cts,mts,ts}`
+* `**/test-*.{cts,mts,ts}`
+* `**/test.{cts,mts,ts}`
+* `**/test/**/*.{cts,mts,ts}`
 
 Alternatively, one or more glob patterns can be provided as the
 final argument(s) to the Node.js command, as shown below.
@@ -475,8 +471,10 @@ all tests have completed. If the [`NODE_V8_COVERAGE`][] environment variable is
 used to specify a code coverage directory, the generated V8 coverage files are
 written to that directory. Node.js core modules and files within
 `node_modules/` directories are, by default, not included in the coverage report.
-However, they can be explicity included via the [`--test-coverage-include`][] flag. If
-coverage is enabled, the coverage report is sent to any [test reporters][] via
+However, they can be explicitly included via the [`--test-coverage-include`][] flag.
+By default all the matching test files are excluded from the coverage report.
+Exclusions can be overridden by using the [`--test-coverage-exclude`][] flag.
+If coverage is enabled, the coverage report is sent to any [test reporters][] via
 the `'test:coverage'` event.
 
 Coverage can be disabled on a series of lines using the following
@@ -929,15 +927,20 @@ test('runs timers as setTime passes ticks', (context) => {
 
 ## Snapshot testing
 
-> Stability: 1.0 - Early development
+<!-- YAML
+added: v22.3.0
+changes:
+  - version: v23.4.0
+    pr-url: https://github.com/nodejs/node/pull/55897
+    description: Snapsnot testing is no longer experimental.
+-->
 
 Snapshot tests allow arbitrary values to be serialized into string values and
 compared against a set of known good values. The known good values are known as
 snapshots, and are stored in a snapshot file. Snapshot files are managed by the
 test runner, but are designed to be human readable to aid in debugging. Best
 practice is for snapshot files to be checked into source control along with your
-test files. In order to enable snapshot testing, Node.js must be started with
-the [`--experimental-test-snapshots`][] command-line flag.
+test files.
 
 Snapshot files are generated by starting Node.js with the
 [`--test-update-snapshots`][] command-line flag. A separate snapshot file is
@@ -1246,6 +1249,14 @@ added:
   - v18.9.0
   - v16.19.0
 changes:
+  - version: v23.0.0
+    pr-url: https://github.com/nodejs/node/pull/54705
+    description: Added the `cwd` option.
+  - version:
+    - v23.0.0
+    - v22.10.0
+    pr-url: https://github.com/nodejs/node/pull/53937
+    description: Added coverage options.
   - version: v22.8.0
     pr-url: https://github.com/nodejs/node/pull/53927
     description: Added the `isolation` option.
@@ -1273,8 +1284,11 @@ changes:
     parallel.
     If `false`, it would only run one test file at a time.
     **Default:** `false`.
+  * `cwd`: {string} Specifies the current working directory to be used by the test runner.
+    Serves as the base path for resolving files according to the [test runner execution model][].
+    **Default:** `process.cwd()`.
   * `files`: {Array} An array containing the list of files to run.
-    **Default** matching files from [test runner execution model][].
+    **Default:** matching files from [test runner execution model][].
   * `forceExit`: {boolean} Configures the test runner to exit the process once
     all known tests have finished executing even if the event loop would
     otherwise remain active. **Default:** `false`.
@@ -1296,6 +1310,12 @@ changes:
   * `setup` {Function} A function that accepts the `TestsStream` instance
     and can be used to setup listeners before any tests are run.
     **Default:** `undefined`.
+  * `execArgv` {Array} An array of CLI flags to pass to the `node` executable when
+    spawning the subprocesses. This option has no effect when `isolation` is `'none`'.
+    **Default:** `[]`
+  * `argv` {Array} An array of CLI flags to pass to each test file when spawning the
+    subprocesses. This option has no effect when `isolation` is `'none'`.
+    **Default:** `[]`.
   * `signal` {AbortSignal} Allows aborting an in-progress test execution.
   * `testNamePatterns` {string|RegExp|Array} A String, RegExp or a RegExp Array,
     that can be used to only run tests whose name matches the provided pattern.
@@ -1319,6 +1339,29 @@ changes:
       that specifies the index of the shard to run. This option is _required_.
     * `total` {number} is a positive integer that specifies the total number
       of shards to split the test files to. This option is _required_.
+  * `coverage` {boolean} enable [code coverage][] collection.
+    **Default:** `false`.
+  * `coverageExcludeGlobs` {string|Array} Excludes specific files from code coverage
+    using a glob pattern, which can match both absolute and relative file paths.
+    This property is only applicable when `coverage` was set to `true`.
+    If both `coverageExcludeGlobs` and `coverageIncludeGlobs` are provided,
+    files must meet **both** criteria to be included in the coverage report.
+    **Default:** `undefined`.
+  * `coverageIncludeGlobs` {string|Array} Includes specific files in code coverage
+    using a glob pattern, which can match both absolute and relative file paths.
+    This property is only applicable when `coverage` was set to `true`.
+    If both `coverageExcludeGlobs` and `coverageIncludeGlobs` are provided,
+    files must meet **both** criteria to be included in the coverage report.
+    **Default:** `undefined`.
+  * `lineCoverage` {number} Require a minimum percent of covered lines. If code
+    coverage does not reach the threshold specified, the process will exit with code `1`.
+    **Default:** `0`.
+  * `branchCoverage` {number} Require a minimum percent of covered branches. If code
+    coverage does not reach the threshold specified, the process will exit with code `1`.
+    **Default:** `0`.
+  * `functionCoverage` {number} Require a minimum percent of covered functions. If code
+    coverage does not reach the threshold specified, the process will exit with code `1`.
+    **Default:** `0`.
 * Returns: {TestsStream}
 
 **Note:** `shard` is used to horizontally parallelize test running across
@@ -1359,6 +1402,11 @@ run({ files: [path.resolve('./tests/test.js')] })
 added:
   - v22.0.0
   - v20.13.0
+changes:
+  - version:
+    - REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/56664
+    description: This function no longer returns a `Promise`.
 -->
 
 * `name` {string} The name of the suite, which is displayed when reporting test
@@ -1369,7 +1417,6 @@ added:
 * `fn` {Function|AsyncFunction} The suite function declaring nested tests and
   suites. The first argument to this function is a [`SuiteContext`][] object.
   **Default:** A no-op function.
-* Returns: {Promise} Immediately fulfilled with `undefined`.
 
 The `suite()` function is imported from the `node:test` module.
 
@@ -1413,6 +1460,10 @@ added:
   - v18.0.0
   - v16.17.0
 changes:
+  - version:
+    - REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/56664
+    description: This function no longer returns a `Promise`.
   - version:
     - v20.2.0
     - v18.17.0
@@ -1462,8 +1513,6 @@ changes:
   to this function is a [`TestContext`][] object. If the test uses callbacks,
   the callback function is passed as the second argument. **Default:** A no-op
   function.
-* Returns: {Promise} Fulfilled with `undefined` once
-  the test completes, or immediately if the test runs within a suite.
 
 The `test()` function is the value imported from the `test` module. Each
 invocation of this function results in reporting the test to the {TestsStream}.
@@ -1471,26 +1520,6 @@ invocation of this function results in reporting the test to the {TestsStream}.
 The `TestContext` object passed to the `fn` argument can be used to perform
 actions related to the current test. Examples include skipping the test, adding
 additional diagnostic information, or creating subtests.
-
-`test()` returns a `Promise` that fulfills once the test completes.
-if `test()` is called within a suite, it fulfills immediately.
-The return value can usually be discarded for top level tests.
-However, the return value from subtests should be used to prevent the parent
-test from finishing first and cancelling the subtest
-as shown in the following example.
-
-```js
-test('top level test', async (t) => {
-  // The setTimeout() in the following subtest would cause it to outlive its
-  // parent test if 'await' is removed on the next line. Once the parent test
-  // completes, it will cancel any outstanding subtests.
-  await t.test('longer running subtest', async (t) => {
-    return new Promise((resolve, reject) => {
-      setTimeout(resolve, 1000);
-    });
-  });
-});
-```
 
 The `timeout` option can be used to fail the test if it takes longer than
 `timeout` milliseconds to complete. However, it is not a reliable mechanism for
@@ -1702,13 +1731,38 @@ describe('tests', async () => {
 });
 ```
 
+## `assert`
+
+<!-- YAML
+added:
+  - v23.7.0
+  - v22.14.0
+-->
+
+An object whose methods are used to configure available assertions on the
+`TestContext` objects in the current process. The methods from `node:assert`
+and snapshot testing functions are available by default.
+
+It is possible to apply the same configuration to all files by placing common
+configuration code in a module
+preloaded with `--require` or `--import`.
+
+### `assert.register(name, fn)`
+
+<!-- YAML
+added:
+  - v23.7.0
+  - v22.14.0
+-->
+
+Defines a new assertion function with the provided name and function. If an
+assertion already exists with the same name, it is overwritten.
+
 ## `snapshot`
 
 <!-- YAML
 added: v22.3.0
 -->
-
-> Stability: 1.0 - Early development
 
 An object whose methods are used to configure default snapshot settings in the
 current process. It is possible to apply the same configuration to all files by
@@ -1720,8 +1774,6 @@ placing common configuration code in a module preloaded with `--require` or
 <!-- YAML
 added: v22.3.0
 -->
-
-> Stability: 1.0 - Early development
 
 * `serializers` {Array} An array of synchronous functions used as the default
   serializers for snapshot tests.
@@ -1737,8 +1789,6 @@ more robust serialization mechanism is required, this function should be used.
 <!-- YAML
 added: v22.3.0
 -->
-
-> Stability: 1.0 - Early development
 
 * `fn` {Function} A function used to compute the location of the snapshot file.
   The function receives the path of the test file as its only argument. If the
@@ -1908,7 +1958,9 @@ mock can still be used after calling this function.
 ## Class: `MockModuleContext`
 
 <!-- YAML
-added: v22.3.0
+added:
+  - v22.3.0
+  - v20.18.0
 -->
 
 > Stability: 1.0 - Early development
@@ -1919,7 +1971,9 @@ created via the [`MockTracker`][] APIs.
 ### `ctx.restore()`
 
 <!-- YAML
-added: v22.3.0
+added:
+  - v22.3.0
+  - v20.18.0
 -->
 
 Resets the implementation of the mock module.
@@ -2060,7 +2114,9 @@ test('spies on an object method', (t) => {
 ### `mock.module(specifier[, options])`
 
 <!-- YAML
-added: v22.3.0
+added:
+  - v22.3.0
+  - v20.18.0
 -->
 
 > Stability: 1.0 - Early development
@@ -2086,8 +2142,10 @@ added: v22.3.0
 
 This function is used to mock the exports of ECMAScript modules, CommonJS
 modules, and Node.js builtin modules. Any references to the original module
-prior to mocking are not impacted. The following example demonstrates how a mock
-is created for a module.
+prior to mocking are not impacted. In order to enable module mocking, Node.js must
+be started with the [`--experimental-test-module-mocks`][] command-line flag.
+
+The following example demonstrates how a mock is created for a module.
 
 ```js
 test('mocks a builtin module in both module systems', async (t) => {
@@ -2166,9 +2224,13 @@ set to `true`.
 added:
   - v20.4.0
   - v18.19.0
+changes:
+  - version: v23.1.0
+    pr-url: https://github.com/nodejs/node/pull/55398
+    description: The Mock Timers is now stable.
 -->
 
-> Stability: 1 - Experimental
+> Stability: 2 - Stable
 
 Mocking timers is a technique commonly used in software testing to simulate and
 control the behavior of timers, such as `setInterval` and `setTimeout`,
@@ -2876,6 +2938,7 @@ The corresponding declaration ordered events are `'test:pass'` and `'test:fail'`
     `undefined` if the test was run through the REPL.
   * `name` {string} The test name.
   * `nesting` {number} The nesting level of the test.
+  * `type` {string} The test type. Either `'suite'` or `'test'`.
 
 Emitted when a test is dequeued, right before it is executed.
 This event is not guaranteed to be emitted in the same order as the tests are
@@ -2908,6 +2971,7 @@ defined.
     `undefined` if the test was run through the REPL.
   * `name` {string} The test name.
   * `nesting` {number} The nesting level of the test.
+  * `type` {string} The test type. Either `'suite'` or `'test'`.
 
 Emitted when a test is enqueued for execution.
 
@@ -3016,6 +3080,31 @@ This event is only emitted if `--test` flag is passed.
 This event is not guaranteed to be emitted in the same order as the tests are
 defined.
 
+### Event: `'test:summary'`
+
+* `data` {Object}
+  * `counts` {Object} An object containing the counts of various test results.
+    * `cancelled` {number} The total number of cancelled tests.
+    * `failed` {number} The total number of failed tests.
+    * `passed` {number} The total number of passed tests.
+    * `skipped` {number} The total number of skipped tests.
+    * `suites` {number} The total number of suites run.
+    * `tests` {number} The total number of tests run, excluding suites.
+    * `todo` {number} The total number of TODO tests.
+    * `topLevel` {number} The total number of top level tests and suites.
+  * `duration_ms` {number} The duration of the test run in milliseconds.
+  * `file` {string|undefined} The path of the test file that generated the
+    summary. If the summary corresponds to multiple files, this value is
+    `undefined`.
+  * `success` {boolean} Indicates whether or not the test run is considered
+    successful or not. If any error condition occurs, such as a failing test or
+    unmet coverage threshold, this value will be set to `false`.
+
+Emitted when a test run completes. This event contains metrics pertaining to
+the completed test run, and is useful for determining if a test run passed or
+failed. If process-level test isolation is used, a `'test:summary'` event is
+generated for each test file in addition to a final cumulative summary.
+
 ### Event: `'test:watch:drained'`
 
 Emitted when no more tests are queued for execution in watch mode.
@@ -3085,12 +3174,9 @@ before each subtest of the current test.
 ```js
 test('top level test', async (t) => {
   t.beforeEach((t) => t.diagnostic(`about to run ${t.name}`));
-  await t.test(
-    'This is a subtest',
-    (t) => {
-      assert.ok('some relevant assertion here');
-    },
-  );
+  t.test('This is a subtest', (t) => {
+    assert.ok('some relevant assertion here');
+  });
 });
 ```
 
@@ -3148,12 +3234,9 @@ after each subtest of the current test.
 ```js
 test('top level test', async (t) => {
   t.afterEach((t) => t.diagnostic(`finished running ${t.name}`));
-  await t.test(
-    'This is a subtest',
-    (t) => {
-      assert.ok('some relevant assertion here');
-    },
-  );
+  t.test('This is a subtest', (t) => {
+    assert.ok('some relevant assertion here');
+  });
 });
 ```
 
@@ -3162,6 +3245,7 @@ test('top level test', async (t) => {
 <!-- YAML
 added:
   - v22.2.0
+  - v20.15.0
 -->
 
 An object containing assertion methods bound to `context`. The top-level
@@ -3175,13 +3259,50 @@ test('test', (t) => {
 });
 ```
 
+#### `context.assert.fileSnapshot(value, path[, options])`
+
+<!-- YAML
+added:
+  - v23.7.0
+  - v22.14.0
+-->
+
+* `value` {any} A value to serialize to a string. If Node.js was started with
+  the [`--test-update-snapshots`][] flag, the serialized value is written to
+  `path`. Otherwise, the serialized value is compared to the contents of the
+  existing snapshot file.
+* `path` {string} The file where the serialized `value` is written.
+* `options` {Object} Optional configuration options. The following properties
+  are supported:
+  * `serializers` {Array} An array of synchronous functions used to serialize
+    `value` into a string. `value` is passed as the only argument to the first
+    serializer function. The return value of each serializer is passed as input
+    to the next serializer. Once all serializers have run, the resulting value
+    is coerced to a string. **Default:** If no serializers are provided, the
+    test runner's default serializers are used.
+
+This function serializes `value` and writes it to the file specified by `path`.
+
+```js
+test('snapshot test with default serialization', (t) => {
+  t.assert.fileSnapshot({ value1: 1, value2: 2 }, './snapshots/snapshot.json');
+});
+```
+
+This function differs from `context.assert.snapshot()` in the following ways:
+
+* The snapshot file path is explicitly provided by the user.
+* Each snapshot file is limited to a single snapshot value.
+* No additional escaping is performed by the test runner.
+
+These differences allow snapshot files to better support features such as syntax
+highlighting.
+
 #### `context.assert.snapshot(value[, options])`
 
 <!-- YAML
 added: v22.3.0
 -->
-
-> Stability: 1.0 - Early development
 
 * `value` {any} A value to serialize to a string. If Node.js was started with
   the [`--test-update-snapshots`][] flag, the serialized value is written to
@@ -3205,7 +3326,7 @@ test('snapshot test with default serialization', (t) => {
 
 test('snapshot test with custom serialization', (t) => {
   t.assert.snapshot({ value3: 3, value4: 4 }, {
-    serializers: [(value) => JSON.stringify(value)]
+    serializers: [(value) => JSON.stringify(value)],
   });
 });
 ```
@@ -3266,9 +3387,13 @@ The name of the test.
 added:
   - v22.2.0
   - v20.15.0
+changes:
+  - version:
+    - v23.4.0
+    - v22.13.0
+    pr-url: https://github.com/nodejs/node/pull/55895
+    description: This function is no longer experimental.
 -->
-
-> Stability: 1 - Experimental
 
 * `count` {number} The number of assertions and subtests that are expected to run.
 
@@ -3328,10 +3453,8 @@ no-op.
 test('top level test', (t) => {
   // The test context can be set to run subtests with the 'only' option.
   t.runOnly(true);
-  return Promise.all([
-    t.test('this subtest is now skipped'),
-    t.test('this subtest is run', { only: true }),
-  ]);
+  t.test('this subtest is now skipped');
+  t.test('this subtest is run', { only: true });
 });
 ```
 
@@ -3404,6 +3527,10 @@ added:
   - v16.17.0
 changes:
   - version:
+    - REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/56664
+    description: This function no longer returns a `Promise`.
+  - version:
     - v18.8.0
     - v16.18.0
     pr-url: https://github.com/nodejs/node/pull/43554
@@ -3447,14 +3574,13 @@ changes:
   to this function is a [`TestContext`][] object. If the test uses callbacks,
   the callback function is passed as the second argument. **Default:** A no-op
   function.
-* Returns: {Promise} Fulfilled with `undefined` once the test completes.
 
 This function is used to create subtests under the current test. This function
 behaves in the same fashion as the top level [`test()`][] function.
 
 ```js
 test('top level test', async (t) => {
-  await t.test(
+  t.test(
     'This is a subtest',
     { only: false, skip: false, concurrency: 1, todo: false, plan: 1 },
     (t) => {
@@ -3463,6 +3589,29 @@ test('top level test', async (t) => {
   );
 });
 ```
+
+### `context.waitFor(condition[, options])`
+
+<!-- YAML
+added:
+  - v23.7.0
+  - v22.14.0
+-->
+
+* `condition` {Function|AsyncFunction} An assertion function that is invoked
+  periodically until it completes successfully or the defined polling timeout
+  elapses. Successful completion is defined as not throwing or rejecting. This
+  function does not accept any arguments, and is allowed to return any value.
+* `options` {Object} An optional configuration object for the polling operation.
+  The following properties are supported:
+  * `interval` {number} The number of milliseconds to wait after an unsuccessful
+    invocation of `condition` before trying again. **Default:** `50`.
+  * `timeout` {number} The poll timeout in milliseconds. If `condition` has not
+    succeeded by the time this elapses, an error occurs. **Default:** `1000`.
+* Returns: {Promise} Fulfilled with the value returned by `condition`.
+
+This method polls a `condition` function until that function either returns
+successfully or the operation times out.
 
 ## Class: `SuiteContext`
 
@@ -3510,9 +3659,11 @@ Can be used to abort test subtasks when the test has been aborted.
 
 [TAP]: https://testanything.org/
 [`--experimental-test-coverage`]: cli.md#--experimental-test-coverage
-[`--experimental-test-snapshots`]: cli.md#--experimental-test-snapshots
+[`--experimental-test-module-mocks`]: cli.md#--experimental-test-module-mocks
 [`--import`]: cli.md#--importmodule
+[`--no-experimental-strip-types`]: cli.md#--no-experimental-strip-types
 [`--test-concurrency`]: cli.md#--test-concurrency
+[`--test-coverage-exclude`]: cli.md#--test-coverage-exclude
 [`--test-coverage-include`]: cli.md#--test-coverage-include
 [`--test-name-pattern`]: cli.md#--test-name-pattern
 [`--test-only`]: cli.md#--test-only
@@ -3537,6 +3688,7 @@ Can be used to abort test subtasks when the test has been aborted.
 [`run()`]: #runoptions
 [`suite()`]: #suitename-options-fn
 [`test()`]: #testname-options-fn
+[code coverage]: #collecting-code-coverage
 [describe options]: #describename-options-fn
 [it options]: #testname-options-fn
 [stream.compose]: stream.md#streamcomposestreams

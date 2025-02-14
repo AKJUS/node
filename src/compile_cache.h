@@ -4,7 +4,6 @@
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
 #include <cinttypes>
-#include <filesystem>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -14,10 +13,17 @@
 namespace node {
 class Environment;
 
-// TODO(joyeecheung): move it into a CacheHandler class.
+#define CACHED_CODE_TYPES(V)                                                   \
+  V(kCommonJS, 0)                                                              \
+  V(kESM, 1)                                                                   \
+  V(kStrippedTypeScript, 2)                                                    \
+  V(kTransformedTypeScript, 3)                                                 \
+  V(kTransformedTypeScriptWithSourceMaps, 4)
+
 enum class CachedCodeType : uint8_t {
-  kCommonJS = 0,
-  kESM,
+#define V(type, value) type = value,
+  CACHED_CODE_TYPES(V)
+#undef V
 };
 
 struct CompileCacheEntry {
@@ -30,9 +36,12 @@ struct CompileCacheEntry {
   std::string source_filename;
   CachedCodeType type;
   bool refreshed = false;
+  bool persisted = false;
+
   // Copy the cache into a new store for V8 to consume. Caller takes
   // ownership.
   v8::ScriptCompiler::CachedData* CopyCache() const;
+  const char* type_name() const;
 };
 
 #define COMPILE_CACHE_STATUS(V)                                                \
@@ -69,7 +78,8 @@ class CompileCacheHandler {
   void MaybeSave(CompileCacheEntry* entry,
                  v8::Local<v8::Module> mod,
                  bool rejected);
-  std::string_view cache_dir() { return compile_cache_dir_str_; }
+  void MaybeSave(CompileCacheEntry* entry, std::string_view transpiled);
+  std::string_view cache_dir() { return compile_cache_dir_; }
 
  private:
   void ReadCacheFile(CompileCacheEntry* entry);
@@ -92,8 +102,7 @@ class CompileCacheHandler {
   v8::Isolate* isolate_ = nullptr;
   bool is_debug_ = false;
 
-  std::string compile_cache_dir_str_;
-  std::filesystem::path compile_cache_dir_;
+  std::string compile_cache_dir_;
   std::unordered_map<uint32_t, std::unique_ptr<CompileCacheEntry>>
       compiler_cache_store_;
 };

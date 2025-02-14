@@ -1,4 +1,4 @@
-import { mustCall, mustNotMutateObjectDeep } from '../common/index.mjs';
+import { mustCall, mustNotMutateObjectDeep, isInsideDirWithUnusualChars } from '../common/index.mjs';
 
 import assert from 'assert';
 import fs from 'fs';
@@ -24,11 +24,19 @@ import tmpdir from '../common/tmpdir.js';
 tmpdir.refresh();
 
 let dirc = 0;
-function nextdir() {
-  return tmpdir.resolve(`copy_${++dirc}`);
+function nextdir(dirname) {
+  return tmpdir.resolve(dirname || `copy_%${++dirc}`);
 }
 
 // Synchronous implementation of copy.
+
+// It copies a nested folder containing UTF characters.
+{
+  const src = './test/fixtures/copy/utf/新建文件夹';
+  const dest = nextdir();
+  cpSync(src, dest, mustNotMutateObjectDeep({ recursive: true }));
+  assertDirEquivalent(src, dest);
+}
 
 // It copies a nested folder structure with files and folders.
 {
@@ -256,7 +264,7 @@ function nextdir() {
 }
 
 // It throws error if parent directory of symlink in dest points to src.
-{
+if (!isInsideDirWithUnusualChars) {
   const src = nextdir();
   mkdirSync(join(src, 'a'), mustNotMutateObjectDeep({ recursive: true }));
   const dest = nextdir();
@@ -271,7 +279,7 @@ function nextdir() {
 }
 
 // It throws error if attempt is made to copy directory to file.
-{
+if (!isInsideDirWithUnusualChars) {
   const src = nextdir();
   mkdirSync(src, mustNotMutateObjectDeep({ recursive: true }));
   const dest = './test/fixtures/copy/kitchen-sink/README.md';
@@ -302,13 +310,52 @@ function nextdir() {
 
 
 // It throws error if attempt is made to copy file to directory.
-{
+if (!isInsideDirWithUnusualChars) {
   const src = './test/fixtures/copy/kitchen-sink/README.md';
   const dest = nextdir();
   mkdirSync(dest, mustNotMutateObjectDeep({ recursive: true }));
   assert.throws(
     () => cpSync(src, dest),
     { code: 'ERR_FS_CP_NON_DIR_TO_DIR' }
+  );
+}
+
+// It must not throw error if attempt is made to copy to dest
+// directory with same prefix as src directory
+// regression test for https://github.com/nodejs/node/issues/54285
+{
+  const src = nextdir('prefix');
+  const dest = nextdir('prefix-a');
+  mkdirSync(src);
+  mkdirSync(dest);
+  cpSync(src, dest, mustNotMutateObjectDeep({ recursive: true }));
+}
+
+// It must not throw error if attempt is made to copy to dest
+// directory if the parent of dest has same prefix as src directory
+// regression test for https://github.com/nodejs/node/issues/54285
+{
+  const src = nextdir('aa');
+  const destParent = nextdir('aaa');
+  const dest = nextdir('aaa/aabb');
+  mkdirSync(src);
+  mkdirSync(destParent);
+  mkdirSync(dest);
+  cpSync(src, dest, mustNotMutateObjectDeep({ recursive: true }));
+}
+
+// It throws error if attempt is made to copy src to dest
+// when src is parent directory of the parent of dest
+if (!isInsideDirWithUnusualChars) {
+  const src = nextdir('a');
+  const destParent = nextdir('a/b');
+  const dest = nextdir('a/b/c');
+  mkdirSync(src);
+  mkdirSync(destParent);
+  mkdirSync(dest);
+  assert.throws(
+    () => cpSync(src, dest, mustNotMutateObjectDeep({ recursive: true })),
+    { code: 'ERR_FS_CP_EINVAL' },
   );
 }
 
@@ -323,7 +370,7 @@ function nextdir() {
 }
 
 // It throws an error if attempt is made to copy socket.
-if (!isWindows) {
+if (!isWindows && !isInsideDirWithUnusualChars) {
   const src = nextdir();
   mkdirSync(src);
   const dest = nextdir();
@@ -691,7 +738,7 @@ if (!isWindows) {
 }
 
 // It returns an error if attempt is made to copy socket.
-if (!isWindows) {
+if (!isWindows && !isInsideDirWithUnusualChars) {
   const src = nextdir();
   mkdirSync(src);
   const dest = nextdir();

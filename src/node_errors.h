@@ -90,7 +90,9 @@ void OOMErrorHandler(const char* location, const v8::OOMDetails& details);
   V(ERR_INVALID_STATE, Error)                                                  \
   V(ERR_INVALID_THIS, TypeError)                                               \
   V(ERR_INVALID_URL, TypeError)                                                \
+  V(ERR_INVALID_URL_PATTERN, TypeError)                                        \
   V(ERR_INVALID_URL_SCHEME, TypeError)                                         \
+  V(ERR_LOAD_SQLITE_EXTENSION, Error)                                          \
   V(ERR_MEMORY_ALLOCATION_FAILED, Error)                                       \
   V(ERR_MESSAGE_TARGET_CONTEXT_UNAVAILABLE, Error)                             \
   V(ERR_MISSING_ARGS, TypeError)                                               \
@@ -98,16 +100,18 @@ void OOMErrorHandler(const char* location, const v8::OOMDetails& details);
   V(ERR_MISSING_PLATFORM_FOR_WORKER, Error)                                    \
   V(ERR_MODULE_NOT_FOUND, Error)                                               \
   V(ERR_NON_CONTEXT_AWARE_DISABLED, Error)                                     \
+  V(ERR_OPERATION_FAILED, TypeError)                                           \
   V(ERR_OUT_OF_RANGE, RangeError)                                              \
   V(ERR_REQUIRE_ASYNC_MODULE, Error)                                           \
   V(ERR_SCRIPT_EXECUTION_INTERRUPTED, Error)                                   \
   V(ERR_SCRIPT_EXECUTION_TIMEOUT, Error)                                       \
   V(ERR_STRING_TOO_LONG, Error)                                                \
   V(ERR_TLS_INVALID_PROTOCOL_METHOD, TypeError)                                \
-  V(ERR_TLS_PSK_SET_IDENTIY_HINT_FAILED, Error)                                \
+  V(ERR_TLS_PSK_SET_IDENTITY_HINT_FAILED, Error)                               \
   V(ERR_VM_MODULE_CACHED_DATA_REJECTED, Error)                                 \
   V(ERR_VM_MODULE_LINK_FAILURE, Error)                                         \
   V(ERR_WASI_NOT_STARTED, Error)                                               \
+  V(ERR_ZLIB_INITIALIZATION_FAILED, Error)                                     \
   V(ERR_WORKER_INIT_FAILED, Error)                                             \
   V(ERR_PROTO_ACCESS, Error)
 
@@ -116,14 +120,18 @@ void OOMErrorHandler(const char* location, const v8::OOMDetails& details);
   inline v8::Local<v8::Object> code(                                           \
       v8::Isolate* isolate, const char* format, Args&&... args) {              \
     std::string message = SPrintF(format, std::forward<Args>(args)...);        \
-    v8::Local<v8::String> js_code = OneByteString(isolate, #code);             \
+    v8::Local<v8::String> js_code = FIXED_ONE_BYTE_STRING(isolate, #code);     \
     v8::Local<v8::String> js_msg =                                             \
-        OneByteString(isolate, message.c_str(), message.length());             \
+        v8::String::NewFromUtf8(isolate,                                       \
+                                message.c_str(),                               \
+                                v8::NewStringType::kNormal,                    \
+                                message.length())                              \
+            .ToLocalChecked();                                                 \
     v8::Local<v8::Object> e = v8::Exception::type(js_msg)                      \
                                   ->ToObject(isolate->GetCurrentContext())     \
                                   .ToLocalChecked();                           \
     e->Set(isolate->GetCurrentContext(),                                       \
-           OneByteString(isolate, "code"),                                     \
+           FIXED_ONE_BYTE_STRING(isolate, "code"),                             \
            js_code)                                                            \
         .Check();                                                              \
     return e;                                                                  \
@@ -186,6 +194,7 @@ ERRORS_WITH_CODE(V)
   V(ERR_INVALID_STATE, "Invalid state")                                        \
   V(ERR_INVALID_THIS, "Value of \"this\" is the wrong type")                   \
   V(ERR_INVALID_URL_SCHEME, "The URL must be of scheme file:")                 \
+  V(ERR_LOAD_SQLITE_EXTENSION, "Failed to load SQLite extension")              \
   V(ERR_MEMORY_ALLOCATION_FAILED, "Failed to allocate memory")                 \
   V(ERR_OSSL_EVP_INVALID_DIGEST, "Invalid digest used")                        \
   V(ERR_MESSAGE_TARGET_CONTEXT_UNAVAILABLE,                                    \
@@ -202,7 +211,7 @@ ERRORS_WITH_CODE(V)
     "--experimental-print-required-tla.")                                      \
   V(ERR_SCRIPT_EXECUTION_INTERRUPTED,                                          \
     "Script execution was interrupted by `SIGINT`")                            \
-  V(ERR_TLS_PSK_SET_IDENTIY_HINT_FAILED, "Failed to set PSK identity hint")    \
+  V(ERR_TLS_PSK_SET_IDENTITY_HINT_FAILED, "Failed to set PSK identity hint")   \
   V(ERR_WASI_NOT_STARTED, "wasi.start() has not been called")                  \
   V(ERR_WORKER_INIT_FAILED, "Worker initialization failure")                   \
   V(ERR_PROTO_ACCESS,                                                          \

@@ -93,11 +93,11 @@ void node_napi_env__::CallbackIntoModule(T&& call) {
       return;
     }
     node::Environment* node_env = env->node_env();
-    // If the module api version is less than NAPI_VERSION_EXPERIMENTAL,
-    // and the option --force-node-api-uncaught-exceptions-policy is not
-    // specified, emit a warning about the uncaught exception instead of
-    // triggering uncaught exception event.
-    if (env->module_api_version < NAPI_VERSION_EXPERIMENTAL &&
+    // If the module api version is less than 10, and the option
+    // --force-node-api-uncaught-exceptions-policy is not specified, emit a
+    // warning about the uncaught exception instead of triggering the uncaught
+    // exception event.
+    if (env->module_api_version < 10 &&
         !node_env->options()->force_node_api_uncaught_exceptions_policy &&
         !enforceUncaughtExceptionPolicy) {
       ProcessEmitDeprecationWarning(
@@ -678,11 +678,13 @@ node::addon_context_register_func get_node_api_context_register_func(
     const char* module_name,
     int32_t module_api_version) {
   static_assert(
-      NODE_API_SUPPORTED_VERSION_MAX == 9,
+      NODE_API_SUPPORTED_VERSION_MAX == 10,
       "New version of Node-API requires adding another else-if statement below "
       "for the new version and updating this assert condition.");
   if (module_api_version == 9) {
     return node_api_context_register_func<9>;
+  } else if (module_api_version == 10) {
+    return node_api_context_register_func<10>;
   } else if (module_api_version == NAPI_VERSION_EXPERIMENTAL) {
     return node_api_context_register_func<NAPI_VERSION_EXPERIMENTAL>;
   } else if (module_api_version >= NODE_API_SUPPORTED_VERSION_MIN &&
@@ -1427,3 +1429,38 @@ napi_status NAPI_CDECL node_api_get_module_file_name(
   *result = static_cast<node_napi_env>(env)->GetFilename();
   return napi_clear_last_error(env);
 }
+
+#ifdef NAPI_EXPERIMENTAL
+
+napi_status NAPI_CDECL
+node_api_create_buffer_from_arraybuffer(napi_env env,
+                                        napi_value arraybuffer,
+                                        size_t byte_offset,
+                                        size_t byte_length,
+                                        napi_value* result) {
+  NAPI_PREAMBLE(env);
+  CHECK_ARG(env, arraybuffer);
+  CHECK_ARG(env, result);
+
+  v8::Local<v8::Value> arraybuffer_value =
+      v8impl::V8LocalValueFromJsValue(arraybuffer);
+  if (!arraybuffer_value->IsArrayBuffer()) {
+    return napi_invalid_arg;
+  }
+
+  v8::Local<v8::ArrayBuffer> arraybuffer_obj =
+      arraybuffer_value.As<v8::ArrayBuffer>();
+  if (byte_offset + byte_length > arraybuffer_obj->ByteLength()) {
+    return napi_throw_range_error(
+        env, "ERR_OUT_OF_RANGE", "The byte offset + length is out of range");
+  }
+
+  v8::Local<v8::Object> buffer =
+      node::Buffer::New(env->isolate, arraybuffer_obj, byte_offset, byte_length)
+          .ToLocalChecked();
+
+  *result = v8impl::JsValueFromV8LocalValue(buffer);
+  return napi_ok;
+}
+
+#endif

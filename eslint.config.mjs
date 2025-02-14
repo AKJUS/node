@@ -17,6 +17,7 @@ import nodeCore from './tools/eslint/eslint-plugin-node-core.js';
 const js = requireEslintTool('@eslint/js');
 const babelEslintParser = requireEslintTool('@babel/eslint-parser');
 const babelPluginSyntaxImportAttributes = resolveEslintTool('@babel/plugin-syntax-import-attributes');
+const babelPluginSyntaxImportSource = resolveEslintTool('@babel/plugin-syntax-import-source');
 const jsdoc = requireEslintTool('eslint-plugin-jsdoc');
 const markdown = requireEslintTool('eslint-plugin-markdown');
 const stylisticJs = requireEslintTool('@stylistic/eslint-plugin-js');
@@ -43,18 +44,12 @@ export default [
       '**/node_modules/**',
       'benchmark/fixtures/**',
       'benchmark/tmp/**',
-      'doc/**/*.js',
       'doc/changelogs/CHANGELOG_V1*.md',
-      '!doc/api_assets/*.js',
       '!doc/changelogs/CHANGELOG_V18.md',
       'lib/punycode.js',
       'test/.tmp.*/**',
       'test/addons/??_*',
       'test/fixtures/**',
-      'test/message/esm_display_syntax_error.mjs',
-      'tools/github_reporter/**',
-      'tools/icu/**',
-      'tools/lint-md/lint-md.mjs',
     ],
   },
   // #endregion
@@ -80,6 +75,7 @@ export default [
         babelOptions: {
           plugins: [
             babelPluginSyntaxImportAttributes,
+            babelPluginSyntaxImportSource,
           ],
         },
         requireConfigFile: false,
@@ -144,6 +140,7 @@ export default [
           ignorePattern: '.*',
         },
       }],
+      'logical-assignment-operators': ['error', 'always', { enforceForIfStatements: true }],
       'default-case-last': 'error',
       'dot-notation': 'error',
       'eqeqeq': ['error', 'smart'],
@@ -289,7 +286,7 @@ export default [
         'error',
         { blankLine: 'always', prev: 'function', next: 'function' },
       ],
-      '@stylistic/js/quotes': ['error', 'single', { avoidEscape: true }],
+      '@stylistic/js/quotes': ['error', 'single', { avoidEscape: true, allowTemplateLiterals: true }],
       '@stylistic/js/quote-props': ['error', 'consistent'],
       '@stylistic/js/rest-spread-spacing': 'error',
       '@stylistic/js/semi': 'error',
@@ -313,6 +310,7 @@ export default [
       'node-core/no-unescaped-regexp-dot': 'error',
       'node-core/no-duplicate-requires': 'error',
       'node-core/prefer-proto': 'error',
+      'node-core/prefer-optional-chaining': 'error',
     },
   },
   // #endregion

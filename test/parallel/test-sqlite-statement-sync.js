@@ -1,4 +1,3 @@
-// Flags: --experimental-sqlite
 'use strict';
 require('../common');
 const tmpdir = require('../common/tmpdir');
@@ -85,6 +84,44 @@ suite('StatementSync.prototype.all()', () => {
   });
 });
 
+suite('StatementSync.prototype.iterate()', () => {
+  test('executes a query and returns an empty iterator on no results', (t) => {
+    const db = new DatabaseSync(nextDb());
+    t.after(() => { db.close(); });
+    const stmt = db.prepare('CREATE TABLE storage(key TEXT, val TEXT)');
+    t.assert.deepStrictEqual(stmt.iterate().toArray(), []);
+  });
+
+  test('executes a query and returns all results', (t) => {
+    const db = new DatabaseSync(nextDb());
+    t.after(() => { db.close(); });
+    let stmt = db.prepare('CREATE TABLE storage(key TEXT, val TEXT)');
+    t.assert.deepStrictEqual(stmt.run(), { changes: 0, lastInsertRowid: 0 });
+    stmt = db.prepare('INSERT INTO storage (key, val) VALUES (?, ?)');
+    t.assert.deepStrictEqual(
+      stmt.run('key1', 'val1'),
+      { changes: 1, lastInsertRowid: 1 },
+    );
+    t.assert.deepStrictEqual(
+      stmt.run('key2', 'val2'),
+      { changes: 1, lastInsertRowid: 2 },
+    );
+
+    const items = [
+      { __proto__: null, key: 'key1', val: 'val1' },
+      { __proto__: null, key: 'key2', val: 'val2' },
+    ];
+
+    stmt = db.prepare('SELECT * FROM storage ORDER BY key');
+    t.assert.deepStrictEqual(stmt.iterate().toArray(), items);
+
+    const itemsLoop = items.slice();
+    for (const item of stmt.iterate()) {
+      t.assert.deepStrictEqual(item, itemsLoop.shift());
+    }
+  });
+});
+
 suite('StatementSync.prototype.run()', () => {
   test('executes a query and returns change metadata', (t) => {
     const db = new DatabaseSync(nextDb());
@@ -135,8 +172,8 @@ suite('StatementSync.prototype.run()', () => {
   });
 });
 
-suite('StatementSync.prototype.sourceSQL()', () => {
-  test('returns input SQL', (t) => {
+suite('StatementSync.prototype.sourceSQL', () => {
+  test('equals input SQL', (t) => {
     const db = new DatabaseSync(nextDb());
     t.after(() => { db.close(); });
     const setup = db.exec(
@@ -145,12 +182,12 @@ suite('StatementSync.prototype.sourceSQL()', () => {
     t.assert.strictEqual(setup, undefined);
     const sql = 'INSERT INTO types (key, val) VALUES ($k, $v)';
     const stmt = db.prepare(sql);
-    t.assert.strictEqual(stmt.sourceSQL(), sql);
+    t.assert.strictEqual(stmt.sourceSQL, sql);
   });
 });
 
-suite('StatementSync.prototype.expandedSQL()', () => {
-  test('returns expanded SQL', (t) => {
+suite('StatementSync.prototype.expandedSQL', () => {
+  test('equals expanded SQL', (t) => {
     const db = new DatabaseSync(nextDb());
     t.after(() => { db.close(); });
     const setup = db.exec(
@@ -164,7 +201,7 @@ suite('StatementSync.prototype.expandedSQL()', () => {
       stmt.run({ $k: '33' }, '42'),
       { changes: 1, lastInsertRowid: 33 },
     );
-    t.assert.strictEqual(stmt.expandedSQL(), expanded);
+    t.assert.strictEqual(stmt.expandedSQL, expanded);
   });
 });
 

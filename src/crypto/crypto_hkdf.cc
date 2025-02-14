@@ -55,7 +55,7 @@ Maybe<void> HKDFTraits::AdditionalConfig(
 
   Utf8Value hash(env->isolate(), args[offset]);
   params->digest = ncrypto::getDigestByName(hash.ToStringView());
-  if (params->digest == nullptr) {
+  if (params->digest == nullptr) [[unlikely]] {
     THROW_ERR_CRYPTO_INVALID_DIGEST(env, "Invalid digest: %s", *hash);
     return Nothing<void>();
   }
@@ -67,11 +67,11 @@ Maybe<void> HKDFTraits::AdditionalConfig(
   ArrayBufferOrViewContents<char> salt(args[offset + 2]);
   ArrayBufferOrViewContents<char> info(args[offset + 3]);
 
-  if (UNLIKELY(!salt.CheckSizeInt32())) {
+  if (!salt.CheckSizeInt32()) [[unlikely]] {
     THROW_ERR_OUT_OF_RANGE(env, "salt is too big");
     return Nothing<void>();
   }
-  if (UNLIKELY(!info.CheckSizeInt32())) {
+  if (!info.CheckSizeInt32()) [[unlikely]] {
     THROW_ERR_OUT_OF_RANGE(env, "info is too big");
     return Nothing<void>();
   }
@@ -88,7 +88,7 @@ Maybe<void> HKDFTraits::AdditionalConfig(
   // HKDF-Expand computes up to 255 HMAC blocks, each having as many bits as the
   // output of the hash function. 255 is a hard limit because HKDF appends an
   // 8-bit counter to each HMAC'd message, starting at 1.
-  if (!ncrypto::checkHkdfLength(params->digest, params->length)) {
+  if (!ncrypto::checkHkdfLength(params->digest, params->length)) [[unlikely]] {
     THROW_ERR_CRYPTO_INVALID_KEYLEN(env);
     return Nothing<void>();
   }

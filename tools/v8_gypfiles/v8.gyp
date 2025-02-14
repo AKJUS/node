@@ -41,6 +41,19 @@
         'AdditionalOptions': ['/utf-8']
       }
     },
+    'conditions': [
+      ['OS=="mac"', {
+        # Hide symbols that are not explicitly exported with V8_EXPORT.
+        # TODO(joyeecheung): enable it on other platforms. Currently gcc times out
+        # or run out of memory with -fvisibility=hidden on some machines in the CI.
+        'xcode_settings': {
+          'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',  # -fvisibility=hidden
+        },
+        'defines': [
+          'BUILDING_V8_SHARED',  # Make V8_EXPORT visible.
+        ],
+      }],
+    ],
   },
   'targets': [
     {
@@ -48,7 +61,7 @@
       'type': 'none',
       'toolsets': ['host', 'target'],
       'conditions': [
-        ['OS=="win" and clang==0', {
+        ['OS == "win" and (clang != 1 or use_ccache_win != 1)', {
           'direct_dependent_settings': {
             'msvs_precompiled_header': '<(V8_ROOT)/../../tools/msvs/pch/v8_pch.h',
             'msvs_precompiled_source': '<(V8_ROOT)/../../tools/msvs/pch/v8_pch.cc',
@@ -355,11 +368,6 @@
             '<(V8_ROOT)/src/builtins/mips64/builtins-mips64.cc',
           ],
         }],
-        ['v8_target_arch=="ppc"', {
-          'sources': [
-            '<(V8_ROOT)/src/builtins/ppc/builtins-ppc.cc',
-          ],
-        }],
         ['v8_target_arch=="ppc64"', {
           'sources': [
             '<(V8_ROOT)/src/builtins/ppc/builtins-ppc.cc',
@@ -508,6 +516,9 @@
             },
           ],
         }],
+        ['OS in "aix os400"', {
+          'dependencies': ['fp16'],
+        }],
       ],
     },  # v8_snapshot
     {
@@ -643,6 +654,11 @@
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_webassembly.*?sources \\+= ")',
             ],
           }],
+          ['v8_enable_wasm_simd256_revec==1', {
+            'sources': [
+              '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_wasm_simd256_revec.*?sources \\+= ")',
+            ],
+          }],
           ['v8_enable_i18n_support==1', {
             'sources': [
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?sources \\+= ")',
@@ -761,11 +777,6 @@
               }],
             ],
           }],
-          ['v8_target_arch=="ppc"', {
-            'sources': [
-              '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"ppc\\".*?sources \\+= ")',
-            ],
-          }],
           ['v8_target_arch=="ppc64"', {
             'sources': [
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?v8_current_cpu == \\"ppc64\\".*?sources \\+= ")',
@@ -849,11 +860,6 @@
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_compiler_sources =.*?v8_current_cpu == \\"mips64\\".*?v8_compiler_sources \\+= ")',
             ],
           }],
-          ['v8_target_arch=="ppc"', {
-            'sources': [
-              '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_compiler_sources =.*?v8_current_cpu == \\"ppc\\".*?v8_compiler_sources \\+= ")',
-            ],
-          }],
           ['v8_target_arch=="ppc64"', {
             'sources': [
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_compiler_sources =.*?v8_current_cpu == \\"ppc64\\".*?v8_compiler_sources \\+= ")',
@@ -877,6 +883,11 @@
           ['v8_enable_webassembly==1', {
             'sources': [
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_compiler_sources =.*?v8_enable_webassembly.*?v8_compiler_sources \\+= ")',
+            ],
+          }],
+          ['v8_enable_wasm_simd256_revec==1', {
+            'sources': [
+              '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_compiler_sources =.*?v8_enable_wasm_simd256_revec.*?v8_compiler_sources \\+= ")',
             ],
           }],
         ],
@@ -992,6 +1003,58 @@
       ],
     },  # v8_compiler_for_mksnapshot
     {
+      'target_name': 'v8_inspector_headers',
+      'type': 'none',
+      'toolsets': ['host', 'target'],
+      'hard_dependency': 1,
+      'includes': ['inspector.gypi'],
+      'direct_dependent_settings': {
+        'include_dirs': [
+          '<(inspector_generated_output_root)/include',
+        ],
+      },
+      'actions': [
+        {
+          'action_name': 'protocol_compatibility',
+          'inputs': [
+            '<(v8_inspector_js_protocol)',
+          ],
+          'outputs': [
+            '<@(inspector_generated_output_root)/src/js_protocol.stamp',
+          ],
+          'action': [
+            '<(python)',
+            '<(inspector_protocol_path)/check_protocol_compatibility.py',
+            '--stamp', '<@(_outputs)',
+            '<@(_inputs)',
+          ],
+          'message': 'Checking inspector protocol compatibility',
+        },
+        {
+          'action_name': 'protocol_generated_sources',
+          'inputs': [
+            '<(v8_inspector_js_protocol)',
+            '<(inspector_path)/inspector_protocol_config.json',
+            '<@(inspector_protocol_files)',
+          ],
+          'outputs': [
+            '<@(inspector_generated_sources)',
+          ],
+          'process_outputs_as_sources': 1,
+          'action': [
+            '<(python)',
+            '<(inspector_protocol_path)/code_generator.py',
+            '--jinja_dir', '<(V8_ROOT)/third_party',
+            '--output_base', '<(inspector_generated_output_root)/src/inspector',
+            '--config', '<(inspector_path)/inspector_protocol_config.json',
+            '--config_value', 'protocol.path=<(v8_inspector_js_protocol)',
+            '--inspector_protocol_dir', '<(inspector_protocol_path)',
+          ],
+          'message': 'Generating inspector protocol sources from protocol json',
+        },
+      ],
+    },  # v8_inspector_headers
+    {
       'target_name': 'v8_base_without_compiler',
       'type': 'static_library',
       'toolsets': ['host', 'target'],
@@ -1000,6 +1063,7 @@
         'v8_bigint',
         'v8_headers',
         'v8_heap_base',
+        'v8_inspector_headers',
         'v8_libbase',
         'v8_shared_internal_headers',
         'v8_version',
@@ -1064,13 +1128,6 @@
           'sources': [
             '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_webassembly.*?sources \\+= ")',
             '<(V8_ROOT)/src/wasm/fuzzing/random-module-generation.cc',
-          ],
-        }],
-        ['v8_enable_third_party_heap==1', {
-          # TODO(targos): add values from v8_third_party_heap_files to sources
-        }, {
-          'sources': [
-            '<(V8_ROOT)/src/heap/third-party/heap-api-stub.cc',
           ],
         }],
         ['v8_enable_heap_snapshot_verify==1', {
@@ -1154,11 +1211,6 @@
             '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_wasm_gdb_remote_debugging.*?v8_current_cpu == \\"mips64\\".*?sources \\+= ")',
           ],
         }],
-        ['v8_target_arch=="ppc"', {
-          'sources': [
-            '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_wasm_gdb_remote_debugging.*?v8_current_cpu == \\"ppc\\".*?sources \\+= ")',
-          ],
-        }],
         ['v8_target_arch=="ppc64"', {
           'sources': [
             '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_wasm_gdb_remote_debugging.*?v8_current_cpu == \\"ppc64\\".*?sources \\+= ")',
@@ -1173,6 +1225,23 @@
           'sources': [
             '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_wasm_gdb_remote_debugging.*?v8_current_cpu == \\"riscv64\\".*?sources \\+= ")',
           ],
+          'conditions': [
+            ['v8_enable_webassembly==1', {
+              'conditions': [
+                ['((_toolset=="host" and host_arch=="riscv64" or _toolset=="target" and target_arch=="riscv64") and (OS=="linux")) or ((_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS=="linux"))', {
+                  'sources': [
+                    '<(V8_ROOT)/src/trap-handler/handler-inside-posix.cc',
+                    '<(V8_ROOT)/src/trap-handler/handler-outside-posix.cc',
+                  ],
+                }],
+                ['(_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS=="linux")', {
+                  'sources': [
+                    '<(V8_ROOT)/src/trap-handler/handler-outside-simulator.cc',
+                  ],
+                }],
+              ],
+            }],
+          ],
         }],
         ['v8_target_arch=="loong64"', {
           'sources': [
@@ -1185,6 +1254,11 @@
                   'sources': [
                     '<(V8_ROOT)/src/trap-handler/handler-inside-posix.cc',
                     '<(V8_ROOT)/src/trap-handler/handler-outside-posix.cc',
+                  ],
+                }],
+                ['(_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS=="linux")', {
+                  'sources': [
+                    '<(V8_ROOT)/src/trap-handler/handler-outside-simulator.cc',
                   ],
                 }],
               ],
@@ -1245,12 +1319,10 @@
         ['v8_postmortem_support', {
           'dependencies': ['postmortem-metadata#target'],
         }],
-        ['v8_enable_third_party_heap', {
-          # TODO(targos): add values from v8_third_party_heap_libs to link_settings.libraries
-        }],
         # Platforms that don't have Compare-And-Swap (CAS) support need to link atomic library
-        # to implement atomic memory access
-        ['v8_current_cpu in ["mips64", "mips64el", "ppc", "arm", "riscv64", "loong64"]', {
+        # to implement atomic memory access.
+        # Clang needs it for some atomic operations (https://clang.llvm.org/docs/Toolchain.html#atomics-library).
+        ['(OS=="linux" and clang==1) or (v8_current_cpu in ["mips64", "mips64el", "arm", "riscv64", "loong64"])', {
           'link_settings': {
             'libraries': ['-latomic', ],
           },
@@ -1890,7 +1962,7 @@
           ['enable_lto=="true"', {
             'cflags_cc': [ '-fno-lto' ],
           }],
-          # Chnges in push_registers_asm.cc in V8 v12.8 requires using
+          # Changes in push_registers_asm.cc in V8 v12.8 requires using
           # push_registers_masm on Windows even with ClangCL on x64
           ['OS=="win"', {
             'conditions': [
@@ -2371,7 +2443,6 @@
         '<(ABSEIL_ROOT)/absl/strings/cord_buffer.cc',
         '<(ABSEIL_ROOT)/absl/strings/escaping.h',
         '<(ABSEIL_ROOT)/absl/strings/escaping.cc',
-        '<(ABSEIL_ROOT)/absl/strings/has_absl_stringify.h',
         '<(ABSEIL_ROOT)/absl/strings/has_ostream_operator.h',
         '<(ABSEIL_ROOT)/absl/strings/internal/charconv_bigint.h',
         '<(ABSEIL_ROOT)/absl/strings/internal/charconv_bigint.cc',

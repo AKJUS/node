@@ -58,6 +58,7 @@ namespace Buffer {
 using v8::ArrayBuffer;
 using v8::ArrayBufferView;
 using v8::BackingStore;
+using v8::BackingStoreInitializationMode;
 using v8::Context;
 using v8::EscapableHandleScope;
 using v8::FastApiTypedArray;
@@ -279,7 +280,7 @@ MaybeLocal<Uint8Array> New(Environment* env,
   CHECK(!env->buffer_prototype_object().IsEmpty());
   Local<Uint8Array> ui = Uint8Array::New(ab, byte_offset, length);
   Maybe<bool> mb =
-      ui->SetPrototype(env->context(), env->buffer_prototype_object());
+      ui->SetPrototypeV2(env->context(), env->buffer_prototype_object());
   if (mb.IsNothing())
     return MaybeLocal<Uint8Array>();
   return ui;
@@ -312,7 +313,7 @@ MaybeLocal<Object> New(Isolate* isolate,
   if (length > 0) {
     store = ArrayBuffer::NewBackingStore(isolate, length);
 
-    if (UNLIKELY(!store)) {
+    if (!store) [[unlikely]] {
       THROW_ERR_MEMORY_ALLOCATION_FAILED(isolate);
       return Local<Object>();
     }
@@ -325,7 +326,7 @@ MaybeLocal<Object> New(Isolate* isolate,
         enc);
     CHECK(actual <= length);
 
-    if (LIKELY(actual > 0)) {
+    if (actual > 0) [[likely]] {
       if (actual < length) {
         std::unique_ptr<BackingStore> old_store = std::move(store);
         store = ArrayBuffer::NewBackingStore(isolate, actual);
@@ -335,8 +336,9 @@ MaybeLocal<Object> New(Isolate* isolate,
       }
       Local<ArrayBuffer> buf = ArrayBuffer::New(isolate, std::move(store));
       Local<Object> obj;
-      if (UNLIKELY(!New(isolate, buf, 0, actual).ToLocal(&obj)))
-        return MaybeLocal<Object>();
+      if (!New(isolate, buf, 0, actual).ToLocal(&obj)) [[unlikely]] {
+        return {};
+      }
       return scope.Escape(obj);
     }
   }
@@ -371,9 +373,8 @@ MaybeLocal<Object> New(Environment* env, size_t length) {
 
   Local<ArrayBuffer> ab;
   {
-    NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
-    std::unique_ptr<BackingStore> bs =
-        ArrayBuffer::NewBackingStore(isolate, length);
+    std::unique_ptr<BackingStore> bs = ArrayBuffer::NewBackingStore(
+        isolate, length, BackingStoreInitializationMode::kUninitialized);
 
     CHECK(bs);
 
@@ -412,18 +413,14 @@ MaybeLocal<Object> Copy(Environment* env, const char* data, size_t length) {
     return Local<Object>();
   }
 
-  Local<ArrayBuffer> ab;
-  {
-    NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
-    std::unique_ptr<BackingStore> bs =
-        ArrayBuffer::NewBackingStore(isolate, length);
+  std::unique_ptr<BackingStore> bs = ArrayBuffer::NewBackingStore(
+      isolate, length, BackingStoreInitializationMode::kUninitialized);
 
-    CHECK(bs);
+  CHECK(bs);
 
-    memcpy(bs->Data(), data, length);
+  memcpy(bs->Data(), data, length);
 
-    ab = ArrayBuffer::New(isolate, std::move(bs));
-  }
+  Local<ArrayBuffer> ab = ArrayBuffer::New(isolate, std::move(bs));
 
   MaybeLocal<Object> obj =
       New(env, ab, 0, ab->ByteLength())
@@ -965,8 +962,9 @@ void IndexOfString(const FunctionCallbackInfo<Value>& args) {
 
   if (enc == UCS2) {
     String::Value needle_value(isolate, needle);
-    if (*needle_value == nullptr)
+    if (*needle_value == nullptr) {
       return args.GetReturnValue().Set(-1);
+    }
 
     if (haystack_length < 2 || needle_value.length() < 1) {
       return args.GetReturnValue().Set(-1);
@@ -1440,58 +1438,6 @@ void CopyArrayBuffer(const FunctionCallbackInfo<Value>& args) {
   memcpy(dest, src, bytes_to_copy);
 }
 
-size_t convert_latin1_to_utf8_s(const char* src,
-                                size_t src_len,
-                                char* dst,
-                                size_t dst_len) noexcept {
-  size_t src_pos = 0;
-  size_t dst_pos = 0;
-
-  const auto safe_len = std::min(src_len, dst_len >> 1);
-  if (safe_len > 16) {
-    // convert_latin1_to_utf8 will never write more than input length * 2.
-    dst_pos += simdutf::convert_latin1_to_utf8(src, safe_len, dst);
-    src_pos += safe_len;
-  }
-
-  // Based on:
-  // https://github.com/simdutf/simdutf/blob/master/src/scalar/latin1_to_utf8/latin1_to_utf8.h
-  // with an upper limit on the number of bytes to write.
-
-  const auto src_ptr = reinterpret_cast<const uint8_t*>(src);
-  const auto dst_ptr = reinterpret_cast<uint8_t*>(dst);
-
-  size_t skip_pos = src_pos;
-  while (src_pos < src_len && dst_pos < dst_len) {
-    if (skip_pos <= src_pos && src_pos + 16 <= src_len &&
-        dst_pos + 16 <= dst_len) {
-      uint64_t v1;
-      memcpy(&v1, src_ptr + src_pos + 0, 8);
-      uint64_t v2;
-      memcpy(&v2, src_ptr + src_pos + 8, 8);
-      if (((v1 | v2) & UINT64_C(0x8080808080808080)) == 0) {
-        memcpy(dst_ptr + dst_pos, src_ptr + src_pos, 16);
-        dst_pos += 16;
-        src_pos += 16;
-      } else {
-        skip_pos = src_pos + 16;
-      }
-    } else {
-      const auto byte = src_ptr[src_pos++];
-      if ((byte & 0x80) == 0) {
-        dst_ptr[dst_pos++] = byte;
-      } else if (dst_pos + 2 <= dst_len) {
-        dst_ptr[dst_pos++] = (byte >> 6) | 0b11000000;
-        dst_ptr[dst_pos++] = (byte & 0b111111) | 0b10000000;
-      } else {
-        break;
-      }
-    }
-  }
-
-  return dst_pos;
-}
-
 template <encoding encoding>
 uint32_t WriteOneByteString(const char* src,
                             uint32_t src_len,
@@ -1502,7 +1448,7 @@ uint32_t WriteOneByteString(const char* src,
   }
 
   if (encoding == UTF8) {
-    return convert_latin1_to_utf8_s(src, src_len, dst, dst_len);
+    return simdutf::convert_latin1_to_utf8_safe(src, src_len, dst, dst_len);
   } else if (encoding == LATIN1 || encoding == ASCII) {
     const auto size = std::min(src_len, dst_len);
     memcpy(dst, src, size);

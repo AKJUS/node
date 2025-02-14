@@ -225,7 +225,33 @@ describe('watch mode', { concurrency: !process.env.TEST_PARALLEL, timeout: 60_00
 
     try {
       await restart();
-      await writeFileSync(envFile, `${envKey}=value1\n${envKey2}=newValue`);
+      writeFileSync(envFile, `${envKey}=value1\n${envKey2}=newValue`);
+
+      // Second restart, after env change
+      const { stderr, stdout } = await restart();
+
+      assert.strictEqual(stderr, '');
+      assert.deepStrictEqual(stdout, [
+        `Restarting ${inspect(jsFile)}`,
+        'ENV: value1',
+        'ENV2: newValue',
+        `Completed running ${inspect(jsFile)}`,
+      ]);
+    } finally {
+      await done();
+    }
+  });
+
+  it('should load new env variables when --env-file-if-exists changes', async () => {
+    const envKey = `TEST_ENV_${Date.now()}`;
+    const envKey2 = `TEST_ENV_2_${Date.now()}`;
+    const jsFile = createTmpFile(`console.log('ENV: ' + process.env.${envKey} + '\\n' + 'ENV2: ' + process.env.${envKey2});`);
+    const envFile = createTmpFile(`${envKey}=value1`, '.env');
+    const { done, restart } = runInBackground({ args: ['--watch', `--env-file-if-exists=${envFile}`, jsFile] });
+
+    try {
+      await restart();
+      writeFileSync(envFile, `${envKey}=value1\n${envKey2}=newValue`);
 
       // Second restart, after env change
       const { stderr, stdout } = await restart();

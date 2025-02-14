@@ -114,7 +114,7 @@ MaybeLocal<String> StringDecoder::DecodeData(Isolate* isolate,
       state_[kMissingBytes] -= found_bytes;
       state_[kBufferedBytes] += found_bytes;
 
-      if (LIKELY(MissingBytes() == 0)) {
+      if (MissingBytes() == 0) [[likely]] {
         // If no more bytes are missing, create a small string that we
         // will later prepend.
         if (!MakeString(isolate,
@@ -132,7 +132,7 @@ MaybeLocal<String> StringDecoder::DecodeData(Isolate* isolate,
 
     // It could be that trying to finish the previous chunk already
     // consumed all data that we received in this chunk.
-    if (UNLIKELY(nread == 0)) {
+    if (nread == 0) [[unlikely]] {
       body = !prepend.IsEmpty() ? prepend : String::Empty(isolate);
       prepend = Local<String>();
     } else {
@@ -272,19 +272,21 @@ void DecodeData(const FunctionCallbackInfo<Value>& args) {
   ArrayBufferViewContents<char> content(args[1].As<ArrayBufferView>());
   size_t length = content.length();
 
-  MaybeLocal<String> ret =
-      decoder->DecodeData(args.GetIsolate(), content.data(), &length);
-  if (!ret.IsEmpty())
-    args.GetReturnValue().Set(ret.ToLocalChecked());
+  Local<String> ret;
+  if (decoder->DecodeData(args.GetIsolate(), content.data(), &length)
+          .ToLocal(&ret)) {
+    args.GetReturnValue().Set(ret);
+  }
 }
 
 void FlushData(const FunctionCallbackInfo<Value>& args) {
   StringDecoder* decoder =
       reinterpret_cast<StringDecoder*>(Buffer::Data(args[0]));
   CHECK_NOT_NULL(decoder);
-  MaybeLocal<String> ret = decoder->FlushData(args.GetIsolate());
-  if (!ret.IsEmpty())
-    args.GetReturnValue().Set(ret.ToLocalChecked());
+  Local<String> ret;
+  if (decoder->FlushData(args.GetIsolate()).ToLocal(&ret)) {
+    args.GetReturnValue().Set(ret);
+  }
 }
 
 void InitializeStringDecoder(Local<Object> target,

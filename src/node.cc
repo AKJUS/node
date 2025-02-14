@@ -320,7 +320,8 @@ MaybeLocal<Value> StartExecution(Environment* env, StartExecutionCallback cb) {
   CHECK(!env->isolate_data()->is_building_snapshot());
 
 #ifndef DISABLE_SINGLE_EXECUTABLE_APPLICATION
-  if (sea::IsSingleExecutable()) {
+  // Snapshot in SEA is only loaded for the main thread.
+  if (sea::IsSingleExecutable() && env->is_main_thread()) {
     sea::SeaResource sea = sea::FindSingleExecutableResource();
     // The SEA preparation blob building process should already enforce this,
     // this check is just here to guard against the unlikely case where
@@ -342,6 +343,9 @@ MaybeLocal<Value> StartExecution(Environment* env, StartExecutionCallback cb) {
   // move the pre-execution part into a different file that can be
   // reused when dealing with user-defined main functions.
   if (!env->snapshot_deserialize_main().IsEmpty()) {
+    // Custom worker snapshot is not supported yet,
+    // so workers can't have deserialize main functions.
+    CHECK(env->is_main_thread());
     return env->RunSnapshotDeserializeMain();
   }
 
@@ -494,7 +498,7 @@ void ResetSignalHandlers() {
       continue;
     act.sa_handler = (nr == SIGPIPE || nr == SIGXFSZ) ? SIG_IGN : SIG_DFL;
     if (act.sa_handler == SIG_DFL) {
-      // The only bad handler value we can inhert from before exec is SIG_IGN
+      // The only bad handler value we can inherit from before exec is SIG_IGN
       // (any actual function pointer is reset to SIG_DFL during exec).
       // If that's the case, we want to reset it back to SIG_DFL.
       // However, it's also possible that an embeder (or an LD_PRELOAD-ed
@@ -993,7 +997,7 @@ InitializeOncePerProcessInternal(const std::vector<std::string>& args,
   if (!(flags & ProcessInitializationFlags::kNoParseGlobalDebugVariables)) {
     // Initialized the enabled list for Debug() calls with system
     // environment variables.
-    per_process::enabled_debug_list.Parse(per_process::system_environment);
+    per_process::enabled_debug_list.Parse(nullptr);
   }
 
   PlatformInit(flags);
@@ -1018,14 +1022,6 @@ InitializeOncePerProcessInternal(const std::vector<std::string>& args,
   }
 
   if (!per_process::cli_options->run.empty()) {
-    // TODO(@anonrig): Handle NODE_NO_WARNINGS, NODE_REDIRECT_WARNINGS,
-    //  --disable-warning and --redirect-warnings.
-    if (per_process::cli_options->per_isolate->per_env->warnings) {
-      fprintf(stderr,
-              "ExperimentalWarning: Task runner is an experimental feature and "
-              "might change at any time\n\n");
-    }
-
     auto positional_args = task_runner::GetPositionalArgs(args);
     result->early_return_ = true;
     task_runner::RunTask(
@@ -1169,6 +1165,7 @@ InitializeOncePerProcessInternal(const std::vector<std::string>& args,
   }
 
   if (!(flags & ProcessInitializationFlags::kNoInitializeNodeV8Platform)) {
+    uv_thread_setname("MainThread");
     per_process::v8_platform.Initialize(
         static_cast<int>(per_process::cli_options->v8_thread_pool_size));
     result->platform_ = per_process::v8_platform.Platform();
@@ -1261,6 +1258,10 @@ void TearDownOncePerProcess() {
     // will never be fully cleaned up.
     per_process::v8_platform.Dispose();
   }
+
+#if HAVE_OPENSSL
+  crypto::CleanupCachedRootCertificates();
+#endif  // HAVE_OPENSSL
 }
 
 ExitCode GenerateAndWriteSnapshotData(const SnapshotData** snapshot_data_ptr,
