@@ -30,7 +30,7 @@
     "clipanion": "patch:clipanion@npm%3A3.2.1#~/.yarn/patches/clipanion-npm-3.2.1-fc9187f56c.patch",
     "debug": "^4.1.1",
     "esbuild": "^0.21.0",
-    "eslint": "^8.57.0",
+    "eslint": "^9.0.0",
     "proxy-from-env": "^1.1.0",
     "semver": "^7.6.3",
     "supports-color": "^9.0.0",
@@ -39,7 +39,7 @@
     "typescript": "^5.3.3",
     "undici": "^6.19.2",
     "v8-compile-cache": "^2.3.0",
-    "vitest": "^2.0.3",
+    "vitest": "^3.0.5",
     "which": "^4.0.0"
   },
   "resolutions": {
